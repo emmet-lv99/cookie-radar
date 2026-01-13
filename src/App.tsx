@@ -1,13 +1,11 @@
 import { Map, Navigation, Zap } from "lucide-react";
-import { useState } from "react";
 import CompassView from "./components/Compass";
 import KakaoMap from "./components/Map";
 import RadarView from "./components/Radar";
-
-type ViewMode = 'RADAR' | 'COMPASS' | 'MAP'
+import { useAppStore } from "./store";
 
 function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>('RADAR')
+  const { viewMode, setViewMode } = useAppStore();
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
