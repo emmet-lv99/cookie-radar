@@ -4,7 +4,7 @@ import { useCookieCompass } from '../hooks/useCookieCompass';
 
 export default function Radar() {
   // 1. 엔진 시동 걸기
-  const {location, heading, error} = useCookieCompass()
+  const {location, heading} = useCookieCompass()
 
   // 2. 디버깅용으로 화면에 찍어보기 (나중에 지움)
   console.log('내 위치', location)
