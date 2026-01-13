@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { chromium, Browser, Page, Frame } from 'playwright';
+import { chromium, Frame, Page } from 'playwright';
 import { StoreData } from './types.ts';
 
 // 1. 브라우저 초기화
@@ -27,8 +27,32 @@ async function searchTarget(page: Page, keyword: string) {
         throw new Error('❌ searchIframe 로딩 시간 초과');
     }
 
-    const searchIframe = page.frame({ name: 'searchIframe' });
-    if (!searchIframe) throw new Error('❌ searchIframe 접근 불가');
+    // 1. 이름으로 찾기
+    let searchIframe = page.frame({ name: 'searchIframe' });
+
+    // 2. 실패 시, URL로 찾기 (최대 10초 대기)
+    if (!searchIframe) {
+        console.log(`⚠️ 프레임 이름 매칭 실패. URL('restaurant/list') 검색 시도...`);
+        for (let i = 0; i < 10; i++) {
+            const frames = page.frames();
+            searchIframe = frames.find(f => f.url().includes('restaurant/list')) || null;
+            
+            if (searchIframe) {
+                console.log(`✅ URL로 searchIframe 발견! (시도: ${i + 1})`);
+                break;
+            }
+            
+            console.log(`   ⏳ 프레임 로딩 대기 중... (${i + 1}/10)`);
+            await page.waitForTimeout(1000);
+        }
+    }
+
+    if (!searchIframe) {
+        // 디버깅용 로그
+        console.log('   [Debug] 현재 로드된 프레임 URL들:');
+        page.frames().forEach(f => console.log('   - ', f.url().slice(0, 50) + '...'));
+        throw new Error('❌ searchIframe 접근 불가');
+    }
 
     return searchIframe;
 }
@@ -76,10 +100,11 @@ async function parseMenu(entryIframe: Frame, page: Page) {
             await menuTab.click();
             await page.waitForTimeout(1500); 
             
-            const menuItems = await entryIframe.$$('.lPzHi'); // 텍스트형 메뉴
-            const altMenuItems = await entryIframe.$$('.E2jtL'); // 이미지형 메뉴 텍스트
+            const menuItems = await entryIframe.$$('.lPzHi'); // 구형 텍스트형
+            const altMenuItems = await entryIframe.$$('.E2jtL'); // 구형 이미지형
+            const newMenuItems = await entryIframe.$$('[class*="MenuContent__tit"]'); // 신형 (React 클래스 등)
             
-            const allItems = [...menuItems, ...altMenuItems];
+            const allItems = [...menuItems, ...altMenuItems, ...newMenuItems];
 
             for (const mItem of allItems) {
                 // .lPzHi를 직접 갖고 있거나, 자식으로 가질 수 있음
@@ -101,11 +126,16 @@ async function main() {
     const results: StoreData[] = [];
 
     try {
-        const keyword = '강남역 두바이 쫀득 쿠키';
+        const keyword = '영등포 카페';
         const searchIframe = await searchTarget(page, keyword);
 
         const itemSelector = '.UEzoS';
-        await searchIframe.waitForSelector(itemSelector, { timeout: 10000 });
+        try {
+            await searchIframe.waitForSelector(itemSelector, { timeout: 5000 });
+        } catch (e) {
+            console.log('⚠️ 검색 결과 목록(.UEzoS)을 찾을 수 없습니다. (결과 없음 또는 선택자 변경)');
+            return;
+        }
         const items = await searchIframe.$$(itemSelector);
         
         console.log(`📦 목록 개수: ${items.length}개`);
@@ -136,9 +166,10 @@ async function main() {
             
             // 메뉴 수집
             const menuList = await parseMenu(entryIframe, page);
+            console.log(`      (수집된 메뉴: ${menuList.slice(0, 5).join(', ')}${menuList.length > 5 ? '...' : ''})`);
 
             // 필터링
-            const filterKewords = ['두바이', '두쫀쿠'];
+            const filterKewords = ['두바이쫀득쿠키', '두쫀쿠'];
             const hasKeyword = menuList.some(menu => filterKewords.some(k => menu.includes(k)));
 
             if(hasKeyword) {
@@ -161,6 +192,7 @@ async function main() {
     } catch (e) {
         console.error('❌ 에러:', e);
     } finally {
+        // 디버깅을 위해 브라우저 종료 안 함
         await browser.close();
     }
 }
