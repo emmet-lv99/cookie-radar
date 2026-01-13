@@ -1,15 +1,28 @@
 import { motion } from 'framer-motion';
 import { ArrowUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useCookieCompass } from '../hooks/useCookieCompass';
 
 export default function Radar() {
   // 1. 엔진 시동 걸기
   const {location, heading} = useCookieCompass()
+  const [smoothHeading, setSmoothHeading] = useState(0);
 
   // 2. 디버깅용으로 화면에 찍어보기 (나중에 지움)
   console.log('내 위치', location)
   console.log('나침반 각도', heading) 
   
+  useEffect(() => {
+  // 현재 보고 있는 방향과 새로운 방향의 차이 계산
+  let delta = heading - smoothHeading;
+  
+  // 차이가 너무 크면(180도 이상), 반대편으로 돌리는 게 더 빠름
+  while (delta < -180) delta += 360;
+  while (delta > 180) delta -= 360;
+  // 부드러운 각도 업데이트
+  setSmoothHeading(prev => prev + delta);
+}, [heading]);
+
   return (
     <div className="relative flex flex-col items-center justify-center w-full h-full bg-black text-neon">
       
@@ -25,7 +38,7 @@ export default function Radar() {
       {/* 2. 중앙 화살표 (Compass Arrow) */}
       <motion.div
         className="z-10"
-        animate={{ rotate: heading }} // 45도 회전 테스트
+        animate={{ rotate: smoothHeading }} // 45도 회전 테스트
         transition={{ type: "spring", stiffness: 100 }}
       >
         <ArrowUp size={120} strokeWidth={2.5} className="text-neon drop-shadow-[0_0_15px_rgba(204,255,0,0.6)]" />
