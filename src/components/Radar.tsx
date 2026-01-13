@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
-import storeData from '../data.json';
+import storeDataRaw from '../data.json';
 import { useCookieCompass } from '../hooks/useCookieCompass';
 import { useAppStore } from '../store';
+import type { StoreData } from '../types';
 import { getBearing, getDistance } from '../utils/geo';
+const storeData = storeDataRaw as StoreData[];
 
 export default function RadarView() {
   const { location, heading } = useCookieCompass();
@@ -15,11 +17,14 @@ export default function RadarView() {
 
   // 레이더 점 계산
   const visibleDots = location ? storeData.map(store => {
+    // 좌표가 없으면 제외 (지오코딩 전 데이터 방어)
+    if (typeof store.lat !== 'number' || typeof store.lng !== 'number') return null;
+
     const dist = getDistance(
       location.latitude,
       location.longitude,
-      store.lat!,
-      store.lng!
+      store.lat,
+      store.lng
     );
 
     if (dist > maxRange) return null; // 범위 밖 제외
@@ -27,8 +32,8 @@ export default function RadarView() {
     const bearing = getBearing(
       location.latitude,
       location.longitude,
-      store.lat!,
-      store.lng!
+      store.lat,
+      store.lng
     );
 
     const relativeAngle = bearing - heading;
