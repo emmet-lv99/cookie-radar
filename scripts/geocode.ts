@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const KAKAO_API_KEY = process.env.VITE_KAKAO_API_KEY; // .env 파일 확인 필수!
-const DATA_FILE_PATH = path.join(__dirname, '../crawler/data_sample.json'); // 읽을 파일
+const DATA_FILE_PATH = path.join(__dirname, '../src/data.json'); // 읽을 파일 (크롤러 출력과 동일)
 const OUTPUT_FILE_PATH = path.join(__dirname, '../src/data.json'); // 최종 저장 경로
 
 async function main() {
