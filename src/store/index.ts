@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { StoreData } from '../types';
 
-type ViewMode = 'RADAR' | 'COMPASS' | 'MAP';
+type ViewMode = 'RADAR' | 'COMPASS' | 'MAP' | 'TRENDS';
 
 interface AppState {
   // 상태 (State)
@@ -18,5 +18,5 @@ export const useAppStore = create<AppState>((set) => ({
   selectedStore: null,
 
   setViewMode: (mode) => set({ viewMode: mode }),
-  setSelectedStore: (store) => set({ selectedStore: store, viewMode: 'COMPASS' }), // 가게 선택 시 자동으로 나침반 모드로 이동!
+  setSelectedStore: (store) => set({ selectedStore: store }), // 가게 선택 (바텀시트 표시용)
 }));
