@@ -32,7 +32,11 @@ function extractPrice(menuInfo: string[]): number | null {
     if (menu.includes('두바이') && menu.includes('쿠키')) {
       const match = menu.match(/(\d{1,2},?\d{3})원/);
       if (match) {
-        return parseInt(match[1].replace(',', ''), 10);
+        const price = parseInt(match[1].replace(',', ''), 10);
+        // 단품 가격 필터 (2000원 ~ 15000원 사이만 인정)
+        if (price > 2000 && price < 15000) {
+          return price;
+        }
       }
     }
   }
@@ -66,7 +70,13 @@ export default function TrendsView() {
     return result;
   }, []);
 
-  const maxPrice = Math.max(...regionData.map(d => d.avgPrice), 10000);
+  const highestAvg = Math.max(...regionData.map(d => d.avgPrice), 0);
+  const lowestAvg = Math.min(...regionData.map(d => d.avgPrice), highestAvg);
+  
+  // Y축 범위 설정 (차이를 극대화하기 위해 최소값 조정)
+  // 바닥 = (최저가 - 1000원) 내림
+  const maxPrice = Math.floor((highestAvg + 1000) / 100) * 100;
+  const minPrice = Math.max(0, Math.floor((lowestAvg - 1000) / 100) * 100); 
 
   return (
     <div className="relative w-full h-full bg-neon overflow-hidden flex flex-col">
@@ -87,7 +97,7 @@ export default function TrendsView() {
             지역별 평균 가격
           </h2>
           <p style={{ margin: '4px 0 0', fontSize: 14, color: 'rgba(0,0,0,0.5)' }}>
-            두바이 쫀득 쿠키 기준
+            두바이 쫀득 쿠키 기준 (단위: 원)
           </p>
         </div>
       </div>
@@ -106,53 +116,73 @@ export default function TrendsView() {
       >
         {/* Y축 레이블 + 바 차트 */}
         <div style={{ flex: 1, display: 'flex', gap: 12 }}>
-          {/* Y축 레이블 */}
+          {/* Y축 레이블 (Dynamic Range) */}
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingBottom: 30 }}>
-            {[maxPrice, Math.round(maxPrice * 0.75), Math.round(maxPrice * 0.5), Math.round(maxPrice * 0.25), 0].map((val, i) => (
-              <span key={i} style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textAlign: 'right', minWidth: 35 }}>
-                {(val / 1000).toFixed(0)}k
-              </span>
-            ))}
+            {[1, 0.75, 0.5, 0.25, 0].map((ratio, i) => {
+               const val = minPrice + (maxPrice - minPrice) * ratio;
+               return (
+                <span key={i} style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textAlign: 'right', minWidth: 35 }}>
+                  {(val / 1000).toFixed(1)}k
+                </span>
+               );
+            })}
           </div>
 
-          {/* 바 차트 */}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', gap: 8, paddingBottom: 30, position: 'relative' }}>
-            {/* 가로 그리드 라인 */}
-            {[0, 25, 50, 75, 100].map((percent) => (
-              <div
-                key={percent}
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  right: 0,
-                  bottom: `calc(${percent}% + 30px)`,
-                  height: 1,
-                  backgroundColor: 'rgba(255,255,255,0.1)',
-                }}
-              />
-            ))}
-
-            {regionData.map((data, idx) => {
-              const heightPercent = (data.avgPrice / maxPrice) * 100;
-              return (
-                <div
-                  key={data.region}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    flex: 1,
-                    maxWidth: 40,
-                  }}
-                >
-                  {/* 바 */}
+          {/* 바 차트 스크롤 영역 */}
+          <div 
+            style={{ 
+              flex: 1, 
+              overflowX: 'auto', 
+              overflowY: 'hidden',
+              display: 'flex',
+              paddingBottom: 30, // 스크롤바 공간 & 레이블 공간
+            }}
+            className="scrollbar-hide" // Tailwind 커스텀 유틸 또는 스타일 필요
+          >
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'flex-end', 
+              gap: 16, 
+              height: '100%',
+              paddingLeft: 10,
+              paddingRight: 20,
+              position: 'relative'
+             }}>
+              {/* 가로 그리드 라인 (스크롤 되어도 배경에 깔리도록 너비는 스크롤 컨텐츠만큼 or 뷰포트만큼? -> 뷰포트 고정 추천하지만, 구조상 어렵다면 그냥 둠) */}
+              
+              {regionData.map((data, idx) => {
+                // 높이 비율 계산 (MinPrice 기준)
+                // 분모가 0이 되는 것을 방지
+                const range = maxPrice - minPrice || 1; 
+                const heightPercent = Math.max(((data.avgPrice - minPrice) / range) * 100, 5); // 최소 5% 높이 보장
+                
+                return (
+                  <div
+                    key={data.region}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      width: 40,        // 고정 너비 40px
+                      minWidth: 40,
+                      height: '100%',
+                      justifyContent: 'flex-end',
+                      position: 'relative', // 라벨 위치 기준점
+                    }}
+                  >
+                  {/* 바 (Glassmorphism Style) */}
                   <div
                     style={{
                       width: '100%',
                       height: `${heightPercent}%`,
                       minHeight: 4,
-                      background: 'linear-gradient(180deg, #CCFF00 0%, #90ac1f 100%)',
-                      borderRadius: 20,
+                      background: 'linear-gradient(180deg, rgba(204, 255, 0, 0.8) 0%, rgba(144, 172, 31, 0.6) 100%)',
+                      backdropFilter: 'blur(4px)',
+                      WebkitBackdropFilter: 'blur(4px)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      borderBottom: 'none', 
+                      borderRadius: '8px 8px 0 0',
+                      boxShadow: '0 4px 15px rgba(204, 255, 0, 0.2)',
                       position: 'relative',
                     }}
                   >
@@ -160,25 +190,30 @@ export default function TrendsView() {
                     <span
                       style={{
                         position: 'absolute',
-                        top: -20,
+                        top: -24,
                         left: '50%',
                         transform: 'translateX(-50%)',
-                        fontSize: 9,
+                        fontSize: 10,
+                        fontWeight: 'bold',
                         color: '#CCFF00',
+                        textShadow: '0 0 10px rgba(0,0,0,0.5)',
                         whiteSpace: 'nowrap',
                       }}
                     >
                       {data.avgPrice.toLocaleString()}
                     </span>
                   </div>
-                  {/* X축 레이블 */}
+                  {/* X축 레이블 (바깥으로 이동) */}
                   <span
                     style={{
                       marginTop: 8,
-                      fontSize: 11,
-                      color: 'rgba(255,255,255,0.6)',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: 'rgba(255,255,255,0.8)',
                       position: 'absolute',
-                      bottom: 8,
+                      bottom: -24,
+                      width: '100%',
+                      textAlign: 'center',
                     }}
                   >
                     {data.region}
@@ -186,6 +221,7 @@ export default function TrendsView() {
                 </div>
               );
             })}
+            </div>
           </div>
         </div>
       </div>
