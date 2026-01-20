@@ -150,7 +150,7 @@ export default function TrendsView() {
              }}>
               {/* 가로 그리드 라인 (스크롤 되어도 배경에 깔리도록 너비는 스크롤 컨텐츠만큼 or 뷰포트만큼? -> 뷰포트 고정 추천하지만, 구조상 어렵다면 그냥 둠) */}
               
-              {regionData.map((data, idx) => {
+              {regionData.map((data) => {
                 // 높이 비율 계산 (MinPrice 기준)
                 // 분모가 0이 되는 것을 방지
                 const range = maxPrice - minPrice || 1; 
