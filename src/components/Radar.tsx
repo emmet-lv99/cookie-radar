@@ -176,10 +176,10 @@ export default function RadarView() {
       <div className="absolute bottom-8 left-0 right-0 flex flex-col items-center gap-2">
         <motion.div
           style={{
-            background: 'rgba(255, 255, 255, 0.25)',
+            background: 'rgba(255, 255, 255, 0.2)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.4)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
             borderRadius: '50px',
             padding: '10px 24px',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
@@ -288,23 +288,42 @@ export default function RadarView() {
               )}
 
               {/* 길 안내 버튼 */}
-              <button
-                onClick={() => setViewMode('COMPASS')}
-                style={{
-                  marginTop: 20,
-                  width: '100%',
-                  padding: '14px',
-                  backgroundColor: '#000',
-                  color: '#CCFF00',
-                  border: 'none',
-                  borderRadius: 12,
-                  fontSize: 16,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                나침반으로 안내
-              </button>
+              <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+                <button
+                  onClick={() => setViewMode('COMPASS')}
+                  style={{
+                    flex: 1,
+                    padding: '14px',
+                    backgroundColor: '#000',
+                    color: '#CCFF00',
+                    border: 'none',
+                    borderRadius: 12,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  나침반으로 안내
+                </button>
+                <button
+                  onClick={() => {
+                    setViewMode('MAP');
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '14px',
+                    backgroundColor: '#000',
+                    color: '#CCFF00',
+                    border: 'none',
+                    borderRadius: 12,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  길찾기
+                </button>
+              </div>
             </motion.div>
           </>
         )}

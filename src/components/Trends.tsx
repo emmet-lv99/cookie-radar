@@ -81,22 +81,23 @@ export default function TrendsView() {
   return (
     <div className="relative w-full h-full bg-neon overflow-hidden flex flex-col">
       {/* 상단 헤더 */}
-      <div style={{ padding: '100px 20px 20px' }}>
+      <div style={{ padding: '120px 20px 20px' }}>
         <div
           style={{
-            background: 'rgba(255, 255, 255, 0.25)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.4)',
-            borderRadius: 24,
-            padding: 20,
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+            // background: 'rgba(255, 255, 255, 0.25)', // Removed background to be cleaner under nav
+            // backdropFilter: 'blur(12px)',
+            // WebkitBackdropFilter: 'blur(12px)',
+            // border: '1px solid rgba(255, 255, 255, 0.4)',
+            // borderRadius: 24,
+            padding: '10px 0',
+            // boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+            textAlign: 'center'
           }}
         >
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#000' }}>
+          <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#000' }}>
             지역별 평균 가격
           </h2>
-          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'rgba(0,0,0,0.5)' }}>
+          <p style={{ margin: '8px 0 0', fontSize: 14, color: 'rgba(0,0,0,0.6)', fontWeight: 500 }}>
             두바이 쫀득 쿠키 기준 (단위: 원)
           </p>
         </div>
@@ -107,11 +108,15 @@ export default function TrendsView() {
         style={{
           flex: 1,
           margin: '0 20px 40px',
-          background: 'rgba(0, 0, 0, 0.9)',
-          borderRadius: 24,
-          padding: 20,
+          background: 'rgba(20, 20, 20, 0.6)', // Lighter dark for glass effect
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: 32,
+          padding: 24,
           display: 'flex',
           flexDirection: 'column',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
         }}
       >
         {/* Y축 레이블 + 바 차트 */}
