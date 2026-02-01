@@ -2,17 +2,7 @@ import * as fs from 'fs';
 import { chromium, Frame, Page } from 'playwright';
 import { StoreData } from './types.ts';
 
-// 1. 브라우저 초기화
-async function initBrowser() {
-    console.log('🚀 크롤러 시작...');
-    const browser = await chromium.launch({ headless: false });
-    const context = await browser.newContext({
-        viewport: { width: 1280, height: 720 },
-        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    });
-    const page = await context.newPage();
-    return { browser, page };
-}
+
 
 // 2. 검색 및 목록 Iframe 획득
 async function searchTarget(page: Page, keyword: string) {
@@ -165,10 +155,98 @@ async function parseMenu(entryIframe: Frame, page: Page) {
     return [...new Set(menuList)];
 }
 
-// 6. 메인 실행 함수
+// 6. 지역별 크롤링 로직 분리
+async function crawlRegion(
+    browser: any, 
+    region: string, 
+    uniqueResults: Map<string, StoreData>
+) {
+    const context = await browser.newContext({
+        viewport: { width: 1280, height: 720 },
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    });
+    const page = await context.newPage();
+
+    try {
+        const keyword = `${region} 카페`;
+        console.log(`\n🌆 지역 검색 시작: ${keyword}`);
+
+        // 1. 검색
+        const searchIframe = await searchTarget(page, keyword);
+        if (!searchIframe) return;
+
+        // 페이지 루프 (최대 3페이지)
+        let pageNum = 1;
+        while (pageNum <= 3) {
+            console.log(`   📄 [${region}] Page ${pageNum} 탐색 중...`);
+
+            const itemSelector = '.UEzoS';
+            try {
+                await searchIframe.waitForSelector(itemSelector, { timeout: 5000 });
+            } catch (e) {
+                console.log(`   ⚠️ [${region}] 결과 없음 (또는 로딩 실패)`);
+                break;
+            }
+
+            const items = await searchIframe.$$(itemSelector);
+            // console.log(`      📦 [${region}] ${items.length}개 후보 발견`);
+
+            for (let i = 0; i < items.length; i++) {
+                const currentItems = await searchIframe.$$(itemSelector);
+                const item = currentItems[i];
+                if (!item) continue;
+
+                const nameBox = await item.$('.place_bluelink');
+                if (nameBox) await nameBox.click();
+                else await item.click();
+
+                await page.waitForTimeout(1500);
+
+                const entryIframe = await waitForEntryIframe(page);
+                if (!entryIframe) continue;
+
+                const { title, address } = await parseStoreInfo(entryIframe);
+                if (!title) continue;
+
+                // 중복이면 패스
+                if (uniqueResults.has(title)) continue;
+
+                const menuList = await parseMenu(entryIframe, page);
+                const filterKewords = ['두바이쫀득쿠키', '두쫀쿠', '두바이'];
+                const hasKeyword = menuList.some(menu => filterKewords.some(k => menu.includes(k)));
+
+                if (hasKeyword) {
+                    uniqueResults.set(title, {
+                        id: `store_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        name: title,
+                        address: address || '',
+                        menuInfo: menuList,
+                        crawledAt: new Date().toISOString()
+                    });
+                    console.log(`      ✨ [${region}] [Get] ${title} 발견!`);
+                }
+            }
+
+            const nextPageLink = await searchIframe.$(`a.mBN2s:text-is("${pageNum + 1}")`);
+            if (nextPageLink) {
+                await nextPageLink.click();
+                await page.waitForTimeout(3000);
+                pageNum++;
+            } else {
+                break;
+            }
+        }
+        console.log(`   ✅ ${region} 수집 완료`);
+    } catch (err) {
+        console.error(`   ❌ ${region} 에러:`, err);
+    } finally {
+        await context.close();
+    }
+}
+
+// 7. 메인 실행 함수
 async function main() {
-    const { browser, page } = await initBrowser();
-    // 대한민국 전국일주 리스트 (구/동 단위 핫플 + 전국 시/군 커버리지 Hybrid)
+    const browser = await chromium.launch({ headless: false });
     const regions = [
         // 1. 서울특별시 (구 단위 + 핵심 동 단위)
         '강남구', '강남구 신사동', '강남구 압구정동', '강남구 청담동', '강남구 역삼동', '강남구 대치동', '강남구 논현동', '강남구 삼성동',
@@ -239,128 +317,30 @@ async function main() {
         '제주시', '제주시 애월읍', '서귀포시'
     ];
     
-    // 중복 제거를 위한 Map (이름 -> 데이터)
+    console.log(`🚀 병렬 크롤러 시작 (동시 실행: 3)...`);
     const uniqueResults = new Map<string, StoreData>();
 
-    try {
-        for (const region of regions) {
-            const keyword = `${region} 카페`;
-            console.log(`\n🌆 지역 검색 시작: ${keyword}`);
-            
-            try {
-                // 1. 검색
-                const searchIframe = await searchTarget(page, keyword);
-                if (!searchIframe) continue; 
+    const concurrency = 3;
+    const taskQueue = [...regions];
 
-                // 페이지 루프 (최대 3페이지)
-                let pageNum = 1;
-                while (pageNum <= 3) {
-                    console.log(`   📄 [Page ${pageNum}] 탐색 중...`);
-
-                    const itemSelector = '.UEzoS';
-                    try {
-                        await searchIframe.waitForSelector(itemSelector, { timeout: 5000 });
-                    } catch (e) {
-                         console.log(`   ⚠️ 결과 없음 (또는 로딩 실패)`);
-                         break;
-                    }
-                    
-                    const items = await searchIframe.$$(itemSelector);
-                    console.log(`      📦 ${items.length}개 후보 발견`);
-
-                    // 리스트 순회
-                    for (let i = 0; i < items.length; i++) {
-                        // Stale Element 방지
-                        const currentItems = await searchIframe.$$(itemSelector);
-                        const item = currentItems[i];
-                        if(!item) continue;
-                        
-                        const nameBox = await item.$('.place_bluelink');
-                        if (nameBox) await nameBox.click();
-                        else await item.click();
-                        
-                        await page.waitForTimeout(1500); // 딜레이
-
-                        const entryIframe = await waitForEntryIframe(page);
-                        if (!entryIframe) continue;
-
-                        const { title, address } = await parseStoreInfo(entryIframe);
-                        if (!title) continue;
-
-                        // 🚫 프랜차이즈 제외 필터 (속도 및 퀄리티 향상)
-                        const excludeKeywords = [
-                            '스타벅스', '투썸', '이디야', '메가커피', '컴포즈', '할리스', 
-                            '빽다방', '커피빈', '매머드', '파리바게뜨','파리바게트', '뚜레쥬르', '폴바셋',
-                            '공차', '엔제리너스', '탐앤탐스', '파스쿠찌', '더벤티', '크리스피크림',
-                            '베스킨', '배스킨', '마호가니', '롯데리아', '맥도날드', '텐퍼센트', '하삼동', '블루샥',
-                            '하이오', '바나프레소', '카페베네', '드롭탑', '달콤커피', '커피베이', '커피스미스', '커피명가',
-                            '만랩', '셀렉토', '토프레소', '요거프레소', '더리터', '카페051', '카페게이트', '매스커피',
-                            '감성커피', '보난자', '메가MGC, 스터디, 만화, 무인'
-                        ];
-
-                        if (excludeKeywords.some(k => title.includes(k))) {
-                            // console.log(`      🚫 [Skip] ${title} (프랜차이즈)`);
-                            continue;
-                        }
-
-                        // 중복이면 패스 (시간 절약)
-                        if (uniqueResults.has(title)) {
-                            // console.log(`      💧 [Skip] ${title}`);
-                            continue;
-                        }
-
-                        const menuList = await parseMenu(entryIframe, page);
-                        const filterKewords = ['두바이쫀득쿠키', '두쫀쿠', '두바이'];
-                        const hasKeyword = menuList.some(menu => filterKewords.some(k => menu.includes(k)));
-
-                        if(hasKeyword) {
-                            uniqueResults.set(title, {
-                                id: `store_${Date.now()}_${i}`,
-                                name: title,
-                                address: address || '',
-                                menuInfo: menuList,
-                                crawledAt: new Date().toISOString()
-                            });
-                            console.log(`      ✨ [Get] ${title} 본거지 발견!`);
-                        }
-                    }
-
-                    // 다음 페이지 버튼 찾기 및 클릭
-                    // 네이버 지도 페이지네이션 버튼 Selector (가변적일 수 있음, 보통 .eUTV2 또는 role="button" 등)
-                    // 현재 구조: 하단에 1, 2, 3... 번호와 '다음' 화살표가 있음.
-                    // '다음' 버튼은 보통 svg 아이콘이거나 '다음페이지' 텍스트를 가진 버튼
-                    const nextBtn = await searchIframe.$('a:has-text("다음페이지")'); // 접근성 텍스트 활용 시도
-                    // 또는 화살표 아이콘 클래스: .eUTV2 (오른쪽 화살표) - 상황에 따라 다름.
-                    // 간단히: 현재 페이지 번호 + 1 인 <a> 태그를 찾아서 클릭하는 방식이 안정적
-                    
-                    const nextPageLink = await searchIframe.$(`a.mBN2s:text-is("${pageNum + 1}")`); // 페이지 번호 직접 클릭
-                    
-                    if (nextPageLink) {
-                        console.log(`   ➡️ ${pageNum + 1}페이지로 이동`);
-                        await nextPageLink.click();
-                        await page.waitForTimeout(3000); // 페이지 로딩 대기
-                        pageNum++;
-                    } else {
-                        // 더 이상 다음 페이지가 없으면
-                        break;
-                    }
-                }
-
-                console.log(`   ✅ ${region} 검색 완료`);
-                
-            } catch (err) {
-                console.error(`   ❌ ${region} 에러:`, err);
+    const workers = Array(concurrency).fill(null).map(async (_, index) => {
+        console.log(`👷 Worker ${index + 1} 대기 시작`);
+        while (taskQueue.length > 0) {
+            const region = taskQueue.shift();
+            if (region) {
+                await crawlRegion(browser, region, uniqueResults);
             }
         }
+        console.log(`👷 Worker ${index + 1} 모든 작업 완료`);
+    });
 
-        // Map -> Array 변환
+    try {
+        await Promise.all(workers);
+
         const finalResults = Array.from(uniqueResults.values());
-        
-        // 파일 저장 (src/data.json 으로 바로 저장!)
         const outputPath = 'src/data.json'; 
         fs.writeFileSync(outputPath, JSON.stringify(finalResults, null, 2));
         console.log(`\n💾 최종 저장 완료: 총 ${finalResults.length}개 업체 (${outputPath})`);
-
     } catch (e) {
         console.error('❌ 치명적 에러:', e);
     } finally {
